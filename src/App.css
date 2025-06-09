@@ -1,38 +1,125 @@
-.App {
-  text-align: center;
+/* Estilo personalizado para el scroll */
+.custom-scroll-container::-webkit-scrollbar {
+  width: 8px;
 }
 
-.App-logo {
-  height: 40vmin;
-  pointer-events: none;
+.custom-scroll-container::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-radius: 4px;
 }
 
-@media (prefers-reduced-motion: no-preference) {
-  .App-logo {
-    animation: App-logo-spin infinite 20s linear;
-  }
+.custom-scroll-container::-webkit-scrollbar-thumb {
+  background: #888;
+  border-radius: 4px;
 }
 
-.App-header {
-  background-color: #282c34;
-  min-height: 100vh;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  font-size: calc(10px + 2vmin);
-  color: white;
+.custom-scroll-container::-webkit-scrollbar-thumb:hover {
+  background: #555;
+}
+.scroll-shadow {
+  box-shadow: inset 0 -10px 10px -10px rgba(0,0,0,0.1);
+}
+/* Estilo para el input de descuento */
+.discount-input {
+  max-width: 80px;
 }
 
-.App-link {
-  color: #61dafb;
+/* Estilo para la fila de descuento */
+.discount-row td {
+  padding-top: 0;
+  padding-bottom: 0;
+  background-color: #fff8e6 !important;
 }
 
-@keyframes App-logo-spin {
-  from {
-    transform: rotate(0deg);
-  }
-  to {
-    transform: rotate(360deg);
-  }
+/* Estilo para el total final */
+.total-row {
+  font-size: 1.1em;
+}
+
+/* En tu archivo CSS */
+.discount-input {
+  max-width: 100px;
+}
+
+.text-discount {
+  color: #28a745;
+  font-weight: bold;
+}
+/* Asegura que la tarjeta de productos ocupe toda la altura */
+.h-100 {
+  height: 100%;
+}
+
+/* Estilo para el contenedor de productos */
+.product-container {
+  height: calc(100vh - 350px); /* Ajusta según necesidades */
+  overflow-y: auto;
+  padding-right: 5px;
+}
+
+/* Barra de scroll personalizada */
+.product-container::-webkit-scrollbar {
+  width: 8px;
+}
+
+.product-container::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-radius: 4px;
+}
+
+.product-container::-webkit-scrollbar-thumb {
+  background: #888;
+  border-radius: 4px;
+}
+
+/* Ajustes para la tabla de cotización */
+.cotizacion-table {
+  width: 100%;
+  margin-top: 20px;
+}
+
+/* Estilo para las cards de productos */
+.product-card {
+  transition: all 0.2s;
+  cursor: pointer;
+}
+
+.product-card:hover {
+  background-color: #f8f9fa;
+}
+/* En tu archivo CSS */
+.discount-column {
+  min-width: 120px;
+}
+
+.discount-input {
+  max-width: 100px;
+}
+
+.input-group-sm .form-control {
+  padding: 0.25rem 0.5rem;
+  font-size: 0.875rem;
+}
+
+.table td, .table th {
+  vertical-align: middle;
+}
+
+.text-discount {
+  color: #dc3545;
+  font-weight: bold;
+}
+/* Resaltar campos con descuentos específicos */
+.bg-warning.bg-opacity-25 {
+  background-color: rgba(255, 193, 7, 0.25) !important;
+}
+
+/* Estilo para inputs de descuento */
+.discount-input {
+  max-width: 100px;
+}
+
+.input-group-sm .form-control {
+  padding: 0.25rem 0.5rem;
+  font-size: 0.875rem;
 }
