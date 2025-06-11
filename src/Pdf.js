@@ -263,15 +263,14 @@ const PdfDocument = ({
   cotizacion,
   cliente,
   listaPrecios,
-  elaboradoPor,
   comentarios,
   porcentajeFormateado,
   calcularDescuentos,
   documentCode = "FO-MS19-01",
   revisionNumber = "01",
-  validityDate = "25/10/2027",
   changeDate = "25/10/2022",
   idCotizacion,
+  usuario
 }) => {
   // Función para formatear números
   const formatCurrency = (value) => {
@@ -280,6 +279,16 @@ const PdfDocument = ({
       currency: "MXN",
     }).format(value);
   };
+  const fechaActual = new Date();
+const fechaVigencia = new Date(fechaActual);
+fechaVigencia.setDate(fechaVigencia.getDate() + 2);
+
+const fechaVigenciaFormateada = fechaVigencia.toLocaleDateString('es-MX', {
+  day: '2-digit',
+  month: 'long',
+  year: 'numeric'
+});
+
 
   // Calcular totales
   const pesoTotal = cotizacion.reduce(
@@ -337,7 +346,7 @@ const PdfDocument = ({
             <View style={styles.docMetaItem}>
               <Text>
                 <Text style={styles.docMetaLabel}>Vigencia: </Text>
-                {validityDate}
+                {fechaVigenciaFormateada}
               </Text>
             </View>
             <View style={styles.docMetaItem}>
@@ -517,9 +526,9 @@ const PdfDocument = ({
         <View style={styles.footer}>
           <View style={styles.docMeta1}>
             <Text>
-              Lista de precios vigente: {listaPrecios?.fecha || "1/abril/2025"}
+              Lista de precios vigente: {new Date().toISOString().slice(0, 10)}
             </Text>
-            <Text>Cotización elaborada por: {elaboradoPor || "Mlopez"}</Text>
+            <Text>Cotización elaborada por: {usuario || "No definido"}</Text>
             <Text>Los precios expresados están en Pesos Mexicanos.</Text>
             <Text>Precios sujetos a cambio sin previo aviso.</Text>
             <Text>La disponibilidad de los productos puede variar.</Text>
@@ -573,9 +582,7 @@ const PdfDocument = ({
         </View>
 
         {/* Promociones */}
-        <View style={styles.promotions}>
-          <Text>---</Text>
-        </View>
+        
 
         {/* Totales */}
       </Page>

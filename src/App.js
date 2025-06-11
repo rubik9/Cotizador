@@ -14,7 +14,6 @@ import {
   Modal,
 } from "react-bootstrap";
 import "bootstrap/dist/css/bootstrap.min.css";
-import { PDFDownloadLink } from "@react-pdf/renderer";
 import PdfDocument from "./Pdf";
 import { pdf } from "@react-pdf/renderer";
 
@@ -50,6 +49,17 @@ function App() {
   const [productosMostrados, setProductosMostrados] = useState([]);
   const [cotizacion, setCotizacion] = useState([]);
   const [busquedaProducto, setBusquedaProducto] = useState("");
+  const [
+    mostrarConfirmacionCambioCliente,
+    setMostrarConfirmacionCambioCliente,
+  ] = useState(false);
+  const [clientePendientePorSeleccionar, setClientePendientePorSeleccionar] =
+    useState(null);
+  const [mostrarModalRevision, setMostrarModalRevision] = useState(false);
+
+  // Estados para el modal de correo
+  const [mostrarModalCorreo, setMostrarModalCorreo] = useState(false);
+  const [correoDestinoManual, setCorreoDestinoManual] = useState("");
 
   // Estados para clientes
   const [clientesOriginales, setClientesOriginales] = useState([]);
@@ -119,6 +129,16 @@ function App() {
     return `COT-${fecha}-${hora}-MASC`;
   };
 
+  // Función para manejar el cambio de cliente
+  const handleClickCambiarCliente = () => {
+    if (cotizacion.length === 0) {
+      setClienteSeleccionado(null);
+    } else {
+      setClientePendientePorSeleccionar(null); // null significa "sin cliente"
+      setMostrarConfirmacionCambioCliente(true);
+    }
+  };
+
   // Función de logout mejorada
   const handleLogout = () => {
     localStorage.removeItem("authBasic");
@@ -132,7 +152,13 @@ function App() {
     setCotizacion([]);
   };
   // Función para enviar PDF por correo  https://script.google.com/a/macros/albapesa.com.mx/s/AKfycbw2wBEsdpKKFN5wU6u7jlH4AG6aHiwXJ-qxffKxWL3oE7mS8nDHyfokcGKk16AVTBvY/exec
-  const enviarPDFporCorreo = async (blob, correosDestino, cotizacionId) => {
+  const enviarPDFporCorreo = async (
+    blob,
+    correosDestino,
+    cotizacionId,
+    revision,
+    usuarioemail
+  ) => {
     try {
       const base64 = await blobToBase64(blob);
 
@@ -142,11 +168,13 @@ function App() {
         : [correosDestino]; // si es string, lo convierte en array de 1
       console.log("Enviando a backend:", {
         cotizacionId: cotizacionId,
-        pdfBase64: base64.split(",")[1].substring(0, 100) + "...", // solo mostramos 1ro 100 caracteres para no saturar
+        pdfBase64: base64.split(",")[1].substring(0, 20) + "...", // solo mostramos 1ro 100 caracteres para no saturar
         revisoresEmails: revisoresEmails,
+        revision: revision,
+        creador: usuarioemail,
       });
       const response = await fetch(
-        "http://localhost:3001/api/create-cotizacion",
+        "https://back-cotizadorv2.vercel.app/api/create-cotizacion",
         {
           method: "POST",
           headers: {
@@ -156,6 +184,9 @@ function App() {
             cotizacionId: cotizacionId,
             pdfBase64: base64.split(",")[1],
             revisoresEmails: revisoresEmails,
+            usuarioNombre: auth.usuario,
+            revision: revision, // nuevo campo para indicar si es revisión
+            usuarioEmail: usuarioemail, // email del usuario que envía
           }),
         }
       );
@@ -181,64 +212,14 @@ function App() {
     });
   };
 
+  
+
+
+
   //Función que decide si descargar o enviar PDF
 
-  const generarYEnviarPDFSegunDescuento = async () => {
-    const nuevoId = generarIdCotizacion();
-    const doc = (
-      <PdfDocument
-        cotizacion={cotizacion}
-        cliente={clienteSeleccionado}
-        listaPrecios={listaSeleccionada}
-        subtotal={totalSubtotal}
-        descuentos={totalDescuentos}
-        iva={totalIVA}
-        total={totalGeneral}
-        kilogramos={totalKilogramos}
-        porcentajeFormateado={porcentajeFormateado}
-        calcularDescuentos={calcularTodosDescuentos}
-        idCotizacion={nuevoId}
-        piezasRegaladas={piezasRegaladas}
-      />
-    );
-
-    const blob = await pdf(doc).toBlob();
-
-    if (porcentajeDescuentoTotal <= 10.9) {
-      // Descargar directamente
-      const correo = ["jvazquez@albapesa.com.mx"];
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `Cotización_${clienteSeleccionado.Customer_Name}.pdf`;
-      a.click();
-      URL.revokeObjectURL(url);
-      try {
-        await enviarPDFporCorreo(blob, correo, nuevoId);
-        console.log("PDF enviado por correo" + correo);
-      } catch (err) {
-        alert("Error al enviar PDF: " + err.message);
-      }
-    } else {
-      const correosDestino = ["mlopez@albapesa.com.mx"];
-      const correosDestinoMayores = [
-        "rcontreras@albapesa.com.mx",
-        "mlopez@albapesa.com.mx",
-      ];
-
-      const correo =
-        porcentajeDescuentoTotal <= 10.9
-          ? ["jvazquez@albapesa.com.mx"] // array SIEMPRE
-          : porcentajeDescuentoTotal <= 19.9
-          ? correosDestino
-          : correosDestinoMayores;
-
-      try {
-        await enviarPDFporCorreo(blob, correo, nuevoId);
-      } catch (err) {
-        alert("Error al enviar PDF: " + err.message);
-      }
-    }
+  const generarYEnviarPDFSegunDescuento = () => {
+    setMostrarModalCorreo(true);
   };
 
   // Función de login mejorada
@@ -520,33 +501,26 @@ function App() {
 
   // Funciones para manejar la cotización
   const agregarProducto = (producto) => {
-    setCotizacion((prev) => {
-      const existeIndex = prev.findIndex(
-        (p) => p.Part_PartNum === producto.Part_PartNum
-      );
+    if (cotizacion.some((p) => p.Part_PartNum === producto.Part_PartNum)) {
+      alert("Este producto ya ha sido agregado a la cotización.");
+      return;
+    }
 
-      if (existeIndex >= 0) {
-        const nuevaCotizacion = [...prev];
-        nuevaCotizacion[existeIndex].cantidad += 1;
-        return nuevaCotizacion;
-      }
-
-      return [
-        ...prev,
-        {
-          ...producto,
-          cantidad: 1,
-          descuentoUnitario: 0,
-          unidadesParaRegalo: 0,
-          piezasRegaladas: 0,
-          descuentoPorcentaje: descuentosGlobales.porcentaje,
-          descuentoFijo: descuentosGlobales.fijo,
-          descuentoDescarga: descuentosGlobales.descarga,
-          descuentoProntoPago: descuentosGlobales.prontoPago,
-          idUnico: `${producto.Part_PartNum}_${Date.now()}`,
-        },
-      ];
-    });
+    setCotizacion((prev) => [
+      ...prev,
+      {
+        ...producto,
+        cantidad: 1,
+        descuentoUnitario: 0,
+        unidadesParaRegalo: 0,
+        piezasRegaladas: 0, // inicializamos en 0
+        descuentoPorcentaje: descuentosGlobales.porcentaje,
+        descuentoFijo: descuentosGlobales.fijo,
+        descuentoDescarga: descuentosGlobales.descarga,
+        descuentoProntoPago: descuentosGlobales.prontoPago,
+        idUnico: `${producto.Part_PartNum}_${Date.now()}`,
+      },
+    ]);
   };
 
   const actualizarCantidad = (partNum, cantidad) => {
@@ -566,31 +540,54 @@ function App() {
     );
   };
 
+  const handleClienteSeleccionado = (cliente) => {
+    if (cotizacion.length === 0) {
+      setClienteSeleccionado(cliente);
+    } else {
+      // Mostrar modal de confirmación
+      setClientePendientePorSeleccionar(cliente);
+      setMostrarConfirmacionCambioCliente(true);
+    }
+  };
+
+  const confirmarCambioCliente = () => {
+    setClienteSeleccionado(clientePendientePorSeleccionar); // puede ser null
+    setCotizacion([]); // limpiar cotización actual
+    setProductos([]); // limpiar lista de productos
+    setClientePendientePorSeleccionar(null);
+    setMostrarConfirmacionCambioCliente(false);
+  };
+
+  const cancelarCambioCliente = () => {
+    setClientePendientePorSeleccionar(null);
+    setMostrarConfirmacionCambioCliente(false);
+  };
+
   const actualizarDescuento = (partNum, campo, valor) => {
     setCotizacion((prev) =>
       prev.map((p) => {
-        if (p.Part_PartNum === partNum) {
-          let valorValidado = parseFloat(valor) || 0;
+        if (p.Part_PartNum !== partNum) return p;
 
-          if (campo === "descuentoPorcentaje") {
-            valorValidado = Math.min(100, Math.max(0, valorValidado));
-          } else if (campo === "descuentoProntoPago") {
-            valorValidado = Math.min(3, Math.max(0, valorValidado));
-          } else if (campo === "unidadesParaRegalo") {
-            valorValidado = Math.max(0, Math.floor(valorValidado));
-            return {
-              ...p,
-              [campo]: valorValidado,
-              piezasRegaladas: calcularPiezasRegaladas(
-                p.cantidad,
-                valorValidado
-              ),
-            };
-          }
+        let valorValidado = parseFloat(valor) || 0;
 
-          return { ...p, [campo]: valorValidado };
+        if (campo === "descuentoPorcentaje") {
+          valorValidado = Math.min(100, Math.max(0, valorValidado));
+        } else if (campo === "descuentoUnitario") {
+          valorValidado = Math.max(0, valorValidado);
+        } else if (campo === "unidadesParaRegalo") {
+          valorValidado = Math.max(0, Math.floor(valorValidado));
+
+          return {
+            ...p,
+            [campo]: valorValidado,
+            piezasRegaladas: calcularPiezasRegaladas(p.cantidad, valorValidado),
+          };
         }
-        return p;
+
+        return {
+          ...p,
+          [campo]: valorValidado,
+        };
       })
     );
   };
@@ -704,7 +701,6 @@ function App() {
 
   return (
     <Container fluid className="py-4">
-      // Modal de login modificado
       <Modal show={!auth.isAuthenticated} backdrop="static">
         <Modal.Header>
           <Modal.Title>Acceso al Sistema</Modal.Title>
@@ -712,7 +708,7 @@ function App() {
         <Modal.Body>
           <Form>
             <Form.Group className="mb-3">
-              <Form.Label>Usuario ERP:</Form.Label>
+              <Form.Label>Usuario Epicor:</Form.Label>
               <Form.Control
                 type="text"
                 value={auth.usuario}
@@ -814,11 +810,7 @@ function App() {
 
                       <Button
                         variant="outline-danger"
-                        onClick={() => {
-                          setClienteSeleccionado(null);
-                          setListaSeleccionada("");
-                          setCotizacion([]);
-                        }}
+                        onClick={handleClickCambiarCliente}
                       >
                         Cambiar cliente
                       </Button>
@@ -855,7 +847,9 @@ function App() {
                               <ListGroup.Item
                                 key={cliente.Customer_CustNum}
                                 action
-                                onClick={() => setClienteSeleccionado(cliente)}
+                                onClick={() =>
+                                  handleClienteSeleccionado(cliente)
+                                }
                               >
                                 {cliente.Customer_Name}
                                 <br />
@@ -1416,6 +1410,15 @@ function App() {
                                 {formatoMoneda(totalDescProntoPago)}
                               </span>
                             </td>
+                            <td colSpan="3" className="text-end">
+                              <Button
+                                variant="success"
+                                className="mt-3"
+                                onClick={generarYEnviarPDFSegunDescuento}
+                              >
+                                Generar Cotizacíon
+                              </Button>
+                            </td>
                           </tr>
                         </tfoot>
                       </Table>
@@ -1425,7 +1428,7 @@ function App() {
               </Col>
             </Row>
           )}
-          <Button
+          {/* <Button
             variant="secondary"
             onClick={() => {
               const testData = {
@@ -1446,14 +1449,143 @@ function App() {
             }}
           >
             Ver Datos PDF
-          </Button>
-          <Button
-            variant="success"
-            className="mt-3"
-            onClick={generarYEnviarPDFSegunDescuento}
+          </Button> */}
+
+          <Modal
+            show={mostrarConfirmacionCambioCliente}
+            onHide={cancelarCambioCliente}
+            centered
           >
-            Generar Cotizacíon
-          </Button>
+            <Modal.Header closeButton>
+              <Modal.Title>⚠️ Cambiar Cliente</Modal.Title>
+            </Modal.Header>
+            <Modal.Body>
+              <p>
+                Si cambias el cliente, se borrará la cotización actual. ¿Deseas
+                continuar?
+              </p>
+            </Modal.Body>
+            <Modal.Footer>
+              <Button variant="secondary" onClick={cancelarCambioCliente}>
+                Cancelar
+              </Button>
+              <Button variant="danger" onClick={confirmarCambioCliente}>
+                Sí, cambiar cliente
+              </Button>
+            </Modal.Footer>
+          </Modal>
+          <Modal
+            show={mostrarModalCorreo}
+            onHide={() => setMostrarModalCorreo(false)}
+          >
+            <Modal.Header closeButton>
+              <Modal.Title>Ingrese el correo de destino</Modal.Title>
+            </Modal.Header>
+            <Modal.Body>
+              <Form.Group>
+                <Form.Label>Correo electrónico</Form.Label>
+                <Form.Control
+                  type="email"
+                  placeholder="ejemplo@dominio.com"
+                  value={correoDestinoManual}
+                  onChange={(e) => setCorreoDestinoManual(e.target.value)}
+                />
+              </Form.Group>
+            </Modal.Body>
+            <Modal.Footer>
+              <Button
+                variant="secondary"
+                onClick={() => setMostrarModalCorreo(false)}
+              >
+                Cancelar
+              </Button>
+              <Button
+                variant="primary"
+                onClick={async () => {
+                  setMostrarModalCorreo(false);
+
+                  const nuevoId = generarIdCotizacion();
+
+                  const doc = (
+                    <PdfDocument
+                      cotizacion={cotizacion}
+                      cliente={clienteSeleccionado}
+                      listaPrecios={listaSeleccionada}
+                      subtotal={totalSubtotal}
+                      descuentos={totalDescuentos}
+                      iva={totalIVA}
+                      total={totalGeneral}
+                      kilogramos={totalKilogramos}
+                      porcentajeFormateado={porcentajeFormateado}
+                      calcularDescuentos={calcularTodosDescuentos}
+                      idCotizacion={nuevoId}
+                      piezasRegaladas={piezasRegaladas}
+                      usuario={auth.usuario}
+                    />
+                  );
+
+                  const blob = await pdf(doc).toBlob();
+
+                  // 1️⃣ Siempre se envía al correo ingresado:
+                  try {
+                    await enviarPDFporCorreo(
+                      blob,
+                      [correoDestinoManual],
+                      nuevoId,
+                      false,
+                      [correoDestinoManual]
+                    );
+                  } catch (err) {
+                    alert(
+                      "Error al enviar PDF al correo ingresado: " + err.message
+                    );
+                  }
+
+                  // 2️⃣ Si > 10.9%, también se envía a los revisores:
+                  if (porcentajeDescuentoTotal > 10.9) {
+                    const correosDestinoMayores = [
+                      "rcontreras@albapesa.com.mx",
+                      "mlopez@albapesa.com.mx",
+                    ];
+                    try {
+                      await enviarPDFporCorreo(
+                        blob,
+                        correosDestinoMayores,
+                        nuevoId,
+                        true,
+                        [correoDestinoManual]
+                      );
+                      setMostrarModalRevision(true);
+                    } catch (err) {
+                      alert("Error al enviar PDF a revisores: " + err.message);
+                    }
+                  }
+                }}
+              >
+                Enviar cotización
+              </Button>
+            </Modal.Footer>
+          </Modal>
+          <Modal
+            show={mostrarModalRevision}
+            onHide={() => setMostrarModalRevision(false)}
+          >
+            <Modal.Header closeButton>
+              <Modal.Title>Cotización en revisión</Modal.Title>
+            </Modal.Header>
+            <Modal.Body>
+              Tu cotización ha rebasado el 10.9% de descuento y ha sido enviada
+              a los revisores para su aprobación.
+            </Modal.Body>
+            <Modal.Footer>
+              <Button
+                variant="primary"
+                onClick={() => setMostrarModalRevision(false)}
+              >
+                Cerrar
+              </Button>
+            </Modal.Footer>
+          </Modal>
         </>
       )}
     </Container>
