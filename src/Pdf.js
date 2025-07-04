@@ -5,9 +5,9 @@ import {
   View,
   StyleSheet,
   Font,
-  Image
+  Image,
 } from "@react-pdf/renderer";
-import logo from './LogoAlbapesa2.png'; // Asegúrate de que la ruta sea correcta
+import logo from "./LogoMejorado.png"; // Asegúrate de que la ruta sea correcta
 // Registrar fuentes (opcional)
 Font.register({
   family: "Helvetica",
@@ -31,10 +31,10 @@ const styles = StyleSheet.create({
   },
   header: {
     marginBottom: 15,
-    borderBottom: "1 solid #000",
     paddingBottom: 10,
   },
   companyName: {
+    marginTop: 10,
     justifyContent: "center",
     alignItems: "center",
     fontWeight: "bold",
@@ -42,7 +42,6 @@ const styles = StyleSheet.create({
     position: "absolute",
     width: "320px",
     height: "90px",
-    border: "1 solid #000",
   },
   date: {
     textAlign: "right",
@@ -52,7 +51,19 @@ const styles = StyleSheet.create({
     position: "relative",
     top: 1,
   },
-  headCliente:{
+  headCliente: {
+    alignItems: "center",
+    justifyContent: "center",
+    width: "100%",
+    height: "20px",
+    textAlign: "center",
+    fontWeight: "bold",
+    fontSize: 8,
+    backgroundColor: "#3988fa",
+    color: "#fff",
+    marginBottom: 3,
+  },
+  headCliente2: {
     alignItems: "center",
     justifyContent: "center",
     width: "100%",
@@ -65,6 +76,8 @@ const styles = StyleSheet.create({
     marginBottom: 3,
   },
   infoRow: {
+    padding: 2,
+    marginBottom: 2,
     textAlign: "center",
     justifyContent: "center",
     alignItems: "center",
@@ -122,7 +135,7 @@ const styles = StyleSheet.create({
   colCantidad: { width: "6%", textAlign: "center" },
   colExpedio: { width: "8%", textAlign: "center" },
   colFlete: { width: "8%", textAlign: "center" },
-   colFlete2: { width: "6%", textAlign: "center" },
+  colFlete2: { width: "9%", textAlign: "center" },
   colSubtotal: { width: "10%", textAlign: "center" },
   colDesc: { width: "8%", textAlign: "center" },
   colTotal: { width: "10%", textAlign: "center", fontWeight: "bold" },
@@ -145,10 +158,10 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     position: "absolute",
-    width: "250px",
-    height: "90px",
+    width: "370px",
+    height: "100px",
     top: 0,
-    left: 491,
+    left: 551,
     fontSize: 12,
   },
   totalRow: {
@@ -170,9 +183,9 @@ const styles = StyleSheet.create({
     fontSize: 13,
   },
   institutionalHeader: {
-    marginBottom: 10,
-    border: "1 solid #000",
+    marginBottom: 5,
     paddingBottom: 10,
+    height: "130px",
   },
   docTitle: {
     justifyContent: "center",
@@ -184,17 +197,32 @@ const styles = StyleSheet.create({
     position: "absolute",
     width: "250px",
     height: "90px",
-    top: 0,
-    left: 321,
-    border: "1 solid #000",
+    top: 55,
+    left: 35,
   },
+  docMetas: {
+    textAlign: "center",
+    position: "absolute",
+    width: "500px",
+    top: 75,
+    left: 450,
+    flexDirection: "column",
+  },
+  docMetas2: {
+    textAlign: "center",
+    position: "absolute",
+    width: "500px",
+    top: -7,
+    left: 420,
+    flexDirection: "column",
+  },
+
   docMeta: {
     textAlign: "center",
     position: "relative",
-    width: "209px",
-    height: "45px",
+    width: "420px",
     top: 0,
-    left: 571,
+    left: 400,
     flexDirection: "row",
     justifyContent: "space-between",
   },
@@ -204,6 +232,14 @@ const styles = StyleSheet.create({
     width: "300px",
     height: "90px",
     top: 0,
+    fontSize: 10,
+  },
+  docMeta2: {
+    border: "1 solid #000",
+    position: "absolute",
+    width: "300px",
+    height: "90px",
+    top: 15,
     fontSize: 10,
   },
   docMetaItem: {
@@ -263,14 +299,22 @@ const PdfDocument = ({
   cotizacion,
   cliente,
   listaPrecios,
-  comentarios,
+  kilogramos,
   porcentajeFormateado,
-  calcularDescuentos,
-  documentCode = "FO-MS19-01",
-  revisionNumber = "01",
-  changeDate = "25/10/2022",
+  porcentajeDesc,
+  descuentos,
   idCotizacion,
-  usuario
+  iva,
+  total,
+  usuario,
+  subtotal,
+  totalSubtotalConDescuento,
+  totalDescUnitario,
+  totalDescRegalo,
+  totalDescPorcentaje,
+  totalDescFijo,
+  totalDescDescarga,
+  descuentoProntoPagoGlobal
 }) => {
   // Función para formatear números
   const formatCurrency = (value) => {
@@ -280,54 +324,41 @@ const PdfDocument = ({
     }).format(value);
   };
   const fechaActual = new Date();
-const fechaVigencia = new Date(fechaActual);
-fechaVigencia.setDate(fechaVigencia.getDate() + 2);
-
-const fechaVigenciaFormateada = fechaVigencia.toLocaleDateString('es-MX', {
-  day: '2-digit',
-  month: 'long',
-  year: 'numeric'
-});
-
+  const fechaVigencia = new Date(fechaActual);
+  fechaVigencia.setDate(fechaVigencia.getDate() + 2);
 
   // Calcular totales
-  const pesoTotal = cotizacion.reduce(
-    (sum, item) => sum + item.Part_GrossWeight * item.cantidad,
-    0
-  );
-  const subtotal = cotizacion.reduce(
-    (sum, item) => sum + item.PriceLstParts_BasePrice * item.cantidad,
-    0
-  );
-  const totalDescuentos = cotizacion.reduce(
-    (sum, item) => sum + calcularDescuentos(item).totalDescuentos,
-    0
-  );
+  //
+  // const subtotal = cotizacion.reduce(
+  //   (sum, item) => sum + item.PriceLstParts_BasePrice * item.cantidad,
+  //   0
+  // );
+
   //   const totalFlete = cotizacion.reduce(
   //     (sum, item) => sum + (item.flete || 0),
   //     0
-  //   );
-  const iva = (subtotal - totalDescuentos) * 0.16;
-  const totalGeneral = subtotal - totalDescuentos + iva; //+ totalFlete
+  
+  const ivatotalSinProntoPago = (totalSubtotalConDescuento+descuentoProntoPagoGlobal) * 0.16;
+  const totalGeneralSinProntoPago = (totalSubtotalConDescuento+descuentoProntoPagoGlobal) + ivatotalSinProntoPago;
 
   return (
     <Document>
-      <Page size="A4" orientation="landscape" style={styles.page}>
+      <Page size={[612, 1000]} orientation="landscape" style={styles.page} wrap>
         {/* Encabezado institucional */}
         <View style={styles.institutionalHeader}>
           <View style={styles.companyName}>
             <Image
               src={logo}
-              style={{ width: "75%", height: "75%",borderRadius: "15px" }}
+              style={{ width: "85%", height: "85%", borderRadius: "15px" }}
               alt="Logo"
-              ></Image>
+            ></Image>
           </View>
 
           <View style={styles.docTitle}>
             <Text>SOLICITUD PEDIDOS MASCOTAS</Text>
           </View>
 
-          <View style={styles.docMeta}>
+          {/* <View style={styles.docMeta}>
             <View style={styles.docMetaItem}>
               <Text>
                 <Text style={styles.docMetaLabel}>Código: </Text>
@@ -360,73 +391,66 @@ const fechaVigenciaFormateada = fechaVigencia.toLocaleDateString('es-MX', {
                 <Text style={styles.docMetaLabel}>Hoja 1 de 1</Text>
               </Text>
             </View>
-          </View>
+          </View> */}
 
           {/* <View style={styles.separator} /> */}
 
-          <View style={styles.docDates}>
-            <Text>
-              <Text style={styles.docMetaLabelDates1}>
-                Fecha de Elaboración: {new Date().toISOString().slice(0, 10)}
-              </Text>
-            </Text>
-            <Text>
-              <Text style={styles.docMetaLabelDates2}>Cotización: </Text>
-              {idCotizacion}
-            </Text>
+          <View style={styles.docMetas2}>
+            <View style={styles.headCliente}>
+              <Text>Folio</Text>
+            </View>
+            <View style={styles.infoRow}>
+              <Text style={styles.infoLabel}>{idCotizacion}</Text>
+            </View>
           </View>
         </View>
 
         {/* Datos del cliente */}
-        <View style={styles.clientInfo}>
-            <View style={styles.headCliente}>
-                <Text >
-                    Datos de cliente
-                </Text>
-            </View>
+        <View style={styles.docMetas}>
+          <View style={styles.headCliente}>
+            <Text>Datos de cliente</Text>
+          </View>
           <View style={styles.infoRow}>
             <Text style={styles.infoLabel}>Cliente:</Text>
-            <Text style={styles.infoValue}>
+            <Text style={styles.infoLabel}>
               {cliente?.Customer_Name || "No especificado"}
             </Text>
             <Text style={styles.infoLabel}>ID</Text>
             <Text style={styles.infoValue}>
-              {cliente?.Customer_CustNum || "N/A"}
+              {cliente?.Customer_CustNum || "0"}
             </Text>
           </View>
           <View style={styles.infoRow}>
             <Text style={styles.infoLabel}>Lista Precios:</Text>
-            <Text style={{ ...styles.infoValue }}>
-              {listaPrecios || "N/A"}
-            </Text>
+            <Text style={{ ...styles.infoValue }}>{listaPrecios || "0"}</Text>
             <Text style={styles.infoLabel}>Classificación:</Text>
             <Text style={styles.infoValue}>
-              {cliente?.Clasificacion || "N/A"}
+              {cliente?.Clasificacion || "0"}
             </Text>
           </View>
           <View style={styles.infoRow}>
             <Text style={styles.infoLabel}>Territorio:</Text>
-            <Text style={styles.infoValue}>{cliente?.Territorio || "N/A"}</Text>
-            <Text style={styles.infoLabel}>Desc. Masc.:</Text>
+            <Text style={styles.infoValue}>{cliente?.Territorio || "0"}</Text>
+            <Text style={styles.infoLabel}>Desc. Prontopago</Text>
             <Text style={styles.infoValue}>
-              {cliente?.DescuentoMascotas || "0%"}
+              {porcentajeDesc || "0"}%
             </Text>
           </View>
         </View>
 
         {/* Comentarios */}
         <View style={styles.comments}>
-          <Text>Comentarios: {comentarios || "Sin comentarios"}</Text>
+          <Text>
+            Fecha de Elaboración: {new Date().toISOString().slice(0, 10)}
+          </Text>
         </View>
 
         {/* Tabla de productos */}
-        <View style={styles.table}>
+        <View style={styles.table} wrap>
           {/* Encabezados */}
-          <View style={styles.headCliente}>
-                <Text >
-                    Cotización
-                </Text>
-            </View>
+          <View style={styles.headCliente2}>
+            <Text>Cotización</Text>
+          </View>
           <View style={styles.tableRow}>
             <View style={[styles.tableColHeader, styles.colCodigo]}>
               <Text>Código</Text>
@@ -455,25 +479,24 @@ const fechaVigenciaFormateada = fechaVigencia.toLocaleDateString('es-MX', {
             <View style={[styles.tableColHeader, styles.colExpedio]}>
               <Text>Descarga $</Text>
             </View>
-            <View style={[styles.tableColHeader, styles.colExpedio]}>
-              <Text>Pronto Pago %</Text>
+            <View style={[styles.tableColHeader, styles.colSubtotal]}>
+              <Text>$ x saco</Text>
             </View>
             <View style={[styles.tableColHeader, styles.colSubtotal]}>
-              <Text>SubTotal</Text>
+              <Text>$ saco con des</Text>
             </View>
             <View style={[styles.tableColHeader, styles.colDesc]}>
               <Text>Desc</Text>
             </View>
             <View style={[styles.tableColHeader, styles.colTotal]}>
-              <Text>Total</Text>
+              <Text>subtotal</Text>
             </View>
           </View>
 
           {/* Productos */}
           {cotizacion.map((item, index) => {
-            const itemSubtotal = item.PriceLstParts_BasePrice * item.cantidad;
-            const itemDescuentos = calcularDescuentos(item).totalDescuentos;
-            const itemTotal = itemSubtotal - itemDescuentos + (item.flete || 0);
+            const precioSacodesc =
+              item.subtotalConDescuento / item.cantidadTotal;
 
             return (
               <View key={index} style={styles.tableRow}>
@@ -484,10 +507,10 @@ const fechaVigenciaFormateada = fechaVigencia.toLocaleDateString('es-MX', {
                   <Text>{item.Part_PartDescription}</Text>
                 </View>
                 <View style={[styles.tableCol, styles.colCantidad]}>
-                  <Text>{item.cantidad}</Text>
+                  <Text>{item.cantidadTotal}</Text>
                 </View>
                 <View style={[styles.tableCol, styles.colExpedio]}>
-                  <Text>{item.descuentoUnitario || "N/A"}</Text>
+                  <Text>{item.descuentoUnitario || "0"}</Text>
                 </View>
                 <View style={[styles.tableCol, styles.colFlete]}>
                   <Text>{item.unidadesParaRegalo || 0}</Text>
@@ -496,35 +519,78 @@ const fechaVigenciaFormateada = fechaVigencia.toLocaleDateString('es-MX', {
                   <Text>{item.piezasRegaladas || 0}</Text>
                 </View>
                 <View style={[styles.tableCol, styles.colExpedio]}>
-                  <Text>{item.descuentoPorcentaje || "N/A"}</Text>
+                  <Text>{item.descuentoPorcentaje || "0"}</Text>
                 </View>
                 <View style={[styles.tableCol, styles.colExpedio]}>
-                  <Text>{item.descuentoFijo || "N/A"}</Text>
+                  <Text>{item.descuentoFijo || "0"}</Text>
                 </View>
                 <View style={[styles.tableCol, styles.colExpedio]}>
-                  <Text>{item.descuentoDescarga || "N/A"}</Text>
-                </View>
-                <View style={[styles.tableCol, styles.colExpedio]}>
-                  <Text>{item.descuentoProntoPago || "N/A"}</Text>
+                  <Text>{item.descuentoDescarga || "0"}</Text>
                 </View>
 
                 <View style={[styles.tableCol, styles.colSubtotal]}>
-                  <Text>{formatCurrency(itemSubtotal)}</Text>
+                  <Text>{formatCurrency(item.PriceLstParts_BasePrice)}</Text>
+                </View>
+                <View style={[styles.tableCol, styles.colSubtotal]}>
+                  <Text>{formatCurrency(precioSacodesc)}</Text>
                 </View>
                 <View style={[styles.tableCol, styles.colDesc]}>
-                  <Text>{formatCurrency(itemDescuentos)}</Text>
+                  <Text>{formatCurrency(item.totalDescuentos)}</Text>
                 </View>
                 <View style={[styles.tableCol, styles.colTotal]}>
-                  <Text>{formatCurrency(itemTotal)}</Text>
+                  <Text>{formatCurrency(item.subtotalConDescuento)}</Text>
                 </View>
               </View>
             );
           })}
+          <View style={styles.tableRow}>
+            <View style={[styles.tableColHeader, styles.colCodigo]}>
+              <Text></Text>
+            </View>
+            <View style={[styles.tableColHeader, styles.colProducto]}>
+              <Text>Desglose de Descuentos</Text>
+            </View>
+            <View style={[styles.tableColHeader, styles.colCantidad]}>
+              <Text></Text>
+            </View>
+            <View style={[styles.tableColHeader, styles.colExpedio]}>
+              <Text>${totalDescUnitario.toFixed(2)} </Text>
+            </View>
+            <View style={[styles.tableColHeader, styles.colFlete]}>
+              <Text></Text>
+            </View>
+            <View style={[styles.tableColHeader, styles.colFlete2]}>
+              <Text>${totalDescRegalo.toFixed(2)}</Text>
+            </View>
+            <View style={[styles.tableColHeader, styles.colExpedio]}>
+              <Text>${totalDescPorcentaje.toFixed(2)}</Text>
+            </View>
+            <View style={[styles.tableColHeader, styles.colExpedio]}>
+              <Text>${totalDescFijo.toFixed(2)} </Text>
+            </View>
+            <View style={[styles.tableColHeader, styles.colExpedio]}>
+              <Text>${totalDescDescarga.toFixed(2)}</Text>
+            </View>
+            <View style={[styles.tableColHeader, styles.colSubtotal]}>
+              <Text></Text>
+            </View>
+            <View style={[styles.tableColHeader, styles.colSubtotal]}>
+              <Text></Text>
+            </View>
+            <View style={[styles.tableColHeader, styles.colDesc]}>
+              <Text></Text>
+            </View>
+            <View style={[styles.tableColHeader, styles.colTotal]}>
+              <Text>
+                {formatCurrency(totalSubtotalConDescuento.toFixed(2))}
+              </Text>
+            </View>
+          </View>
         </View>
 
         {/* Información de pie de página */}
         <View style={styles.footer}>
-          <View style={styles.docMeta1}>
+          <View style={styles.docMeta2}>
             <Text>
               Lista de precios vigente: {new Date().toISOString().slice(0, 10)}
             </Text>
@@ -550,23 +616,26 @@ const fechaVigenciaFormateada = fechaVigencia.toLocaleDateString('es-MX', {
                 <Text>Descuento (%): </Text>
               </View>
               <View style={styles.totalRow}>
-                <Text>IVA Mascotas</Text>
+                <Text>IVA</Text>
               </View>
 
               <View style={{ ...styles.totalRow, ...styles.grandTotal }}>
-                <Text>Total:</Text>
+                <Text>Total pronto pago</Text>
+              </View>
+              <View style={{ ...styles.totalRow, ...styles.grandTotal }}>
+                <Text>Total sin pronto pago</Text>
               </View>
             </View>
 
             <View style={styles.totalRowdatas}>
               <View style={styles.totalRowdata}>
-                <Text>{pesoTotal.toLocaleString("es-MX")}</Text>
+                <Text>{kilogramos.toLocaleString("es-MX")}</Text>
               </View>
               <View style={styles.totalRowdata}>
                 <Text>{formatCurrency(subtotal)}</Text>
               </View>
               <View style={styles.totalRowdata}>
-                <Text>-{formatCurrency(totalDescuentos)}</Text>
+                <Text>-{formatCurrency(descuentos)}</Text>
               </View>
               <View style={styles.totalRowdata}>
                 <Text>{porcentajeFormateado}%</Text>
@@ -575,14 +644,16 @@ const fechaVigenciaFormateada = fechaVigencia.toLocaleDateString('es-MX', {
                 <Text>{formatCurrency(iva)}</Text>
               </View>
               <View style={{ ...styles.totalRowdata, ...styles.grandTotal }}>
-                <Text>{formatCurrency(totalGeneral)}</Text>
+                <Text>{formatCurrency(total)}</Text>
+              </View>
+              <View style={{ ...styles.totalRowdata, ...styles.grandTotal }}>
+                <Text>{formatCurrency( totalGeneralSinProntoPago)}</Text>
               </View>
             </View>
           </View>
         </View>
 
         {/* Promociones */}
-        
 
         {/* Totales */}
       </Page>

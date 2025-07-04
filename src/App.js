@@ -15,6 +15,7 @@ import {
 } from "react-bootstrap";
 import "bootstrap/dist/css/bootstrap.min.css";
 import PdfDocument from "./Pdf";
+import { PDFDownloadLink } from "@react-pdf/renderer";
 import { pdf } from "@react-pdf/renderer";
 
 // Función helper para fetch con autenticación
@@ -49,6 +50,7 @@ function App() {
   const [productosMostrados, setProductosMostrados] = useState([]);
   const [cotizacion, setCotizacion] = useState([]);
   const [busquedaProducto, setBusquedaProducto] = useState("");
+
   const [
     mostrarConfirmacionCambioCliente,
     setMostrarConfirmacionCambioCliente,
@@ -73,6 +75,7 @@ function App() {
   const [listaSeleccionada, setListaSeleccionada] = useState("");
   const [cargandoProductos, setCargandoProductos] = useState(false);
   const [errorProductos, setErrorProductos] = useState(null);
+  const [idCotizacion, setIdCotizacion] = useState("");
 
   // Estados para unidades de regalo
   const [piezasRegaladas, setPiezasRegaladas] = useState({});
@@ -126,8 +129,14 @@ function App() {
       .getMinutes()
       .toString()
       .padStart(2, "0")}${now.getSeconds().toString().padStart(2, "0")}`;
-    return `COT-${fecha}-${hora}-MASC`;
+    const idGenerado = `COT-${fecha}-${hora}-MASC`;
+    setIdCotizacion(idGenerado); // Guardar el ID generado
+    return idGenerado;
   };
+  //   const handleGenerarYEnviar = () => {
+  //   const idGenerado = idCotizacion || generarIdCotizacion(); // Solo si no existe
+  //   // Usar idGenerado en fetch, PDF, correos, etc.
+  // };
 
   // Función para manejar el cambio de cliente
   const handleClickCambiarCliente = () => {
@@ -166,13 +175,7 @@ function App() {
       const revisoresEmails = correosDestino
         ? correosDestino
         : [correosDestino]; // si es string, lo convierte en array de 1
-      console.log("Enviando a backend:", {
-        cotizacionId: cotizacionId,
-        pdfBase64: base64.split(",")[1].substring(0, 20) + "...", // solo mostramos 1ro 100 caracteres para no saturar
-        revisoresEmails: revisoresEmails,
-        revision: revision,
-        creador: usuarioemail,
-      });
+
       const response = await fetch(
         "https://back-cotizadorv2.vercel.app/api/create-cotizacion",
         {
@@ -193,9 +196,9 @@ function App() {
 
       const result = await response.json();
       if (result.success) {
-        alert("✅ Correo de revisión enviado correctamente");
+        console.log("✅ Correo de revisión enviado correctamente");
       } else {
-        alert("❌ Error al enviar correo: " + result.message);
+        console.log("❌ Error al enviar correo: " + result.message);
       }
     } catch (err) {
       alert("⚠️ Error técnico: " + err.message);
@@ -212,13 +215,10 @@ function App() {
     });
   };
 
-  
-
-
-
   //Función que decide si descargar o enviar PDF
 
   const generarYEnviarPDFSegunDescuento = () => {
+    generarIdCotizacion(); // Generar ID de cotización
     setMostrarModalCorreo(true);
   };
 
@@ -328,30 +328,10 @@ function App() {
   }, [auth.isAuthenticated]);
 
   // Cargar productos al montar el componente
+  // Ya no cargues todos los productos al iniciar sesión
   useEffect(() => {
-    const cargarProductos = async () => {
-      setCargandoProductos(true);
-      try {
-        const response = await fetchConAuth(
-          "https://albapesa.app/ERP10Live/api/v1/BaqSvc/Calculo_Admin(Albapesa)/"
-        );
-
-        const data = await response.json();
-        setProductos(data.value || []);
-        setErrorProductos(null);
-      } catch (error) {
-        console.error("Error al cargar productos:", error);
-        setErrorProductos(error.message);
-        if (error.message.includes("Credenciales inválidas")) {
-          handleLogout();
-        }
-      } finally {
-        setCargandoProductos(false);
-      }
-    };
-
     if (auth.isAuthenticated) {
-      cargarProductos();
+      setProductos([]); // Limpia productos al login
     }
   }, [auth.isAuthenticated]);
 
@@ -378,7 +358,7 @@ function App() {
 
       if (clienteCompleto?.ListasPrecio?.length > 0) {
         setListasCliente(clienteCompleto.ListasPrecio);
-        setListaSeleccionada(clienteCompleto.ListasPrecio[0]);
+        setListaSeleccionada(""); // <--- Esto es lo que te falta
         setErrorProductos(null);
       } else {
         setListasCliente([]);
@@ -404,11 +384,9 @@ function App() {
 
   // Filtrar productos cuando cambia la lista seleccionada o búsqueda
   useEffect(() => {
-    if (listaSeleccionada) {
+    if (productos.length > 0) {
       setCargandoProductos(true);
-      let resultados = productos.filter(
-        (p) => p.PriceLst_ListCode === listaSeleccionada
-      );
+      let resultados = productos;
 
       if (busquedaProducto.length > 0) {
         const termino = busquedaProducto.toLowerCase();
@@ -427,13 +405,23 @@ function App() {
         setErrorProductos(
           busquedaProducto.length > 0
             ? `No se encontraron productos con "${busquedaProducto}"`
-            : `No hay productos en la lista ${listaSeleccionada}`
+            : `No hay productos en la lista seleccionada`
         );
       } else {
         setErrorProductos(null);
       }
+    } else {
+      setProductosMostrados([]); // limpiar si no hay productos
     }
-  }, [listaSeleccionada, productos, busquedaProducto]);
+  }, [productos, busquedaProducto]);
+
+  // Seleccionar la primera lista de precios automáticamente si no hay una seleccionada
+  useEffect(() => {
+    if (listasCliente.length > 0 && listaSeleccionada === "") {
+      const primeraLista = listasCliente[0];
+      handleListaPreciosChange(primeraLista);
+    }
+  }, [listasCliente, listaSeleccionada]);
 
   // Actualizar productos cuando cambian descuentos globales
   useEffect(() => {
@@ -453,10 +441,6 @@ function App() {
               item.descuentoDescarga === descuentosGlobales.descarga
                 ? descuentosGlobales.descarga
                 : item.descuentoDescarga,
-            descuentoProntoPago:
-              item.descuentoProntoPago === descuentosGlobales.prontoPago
-                ? descuentosGlobales.prontoPago
-                : item.descuentoProntoPago,
           };
 
           return { ...item, ...nuevosDescuentos };
@@ -466,38 +450,42 @@ function App() {
   }, [descuentosGlobales]);
 
   // Función para calcular todos los descuentos
-  const calcularTodosDescuentos = useCallback(
-    (item) => {
-      const precioBase = item.PriceLstParts_BasePrice * item.cantidad;
-      const piezasReg =
-        piezasRegaladas[item.idUnico] ??
-        calcularPiezasRegaladas(item.cantidad, item.unidadesParaRegalo);
-      const descRegalo = piezasReg * item.PriceLstParts_BasePrice;
-      const descUnitario = item.descuentoUnitario * item.cantidad;
-      const descPorcentaje = precioBase * (item.descuentoPorcentaje / 100);
-      const descProntoPago = precioBase * (item.descuentoProntoPago / 100);
-      const descFijo = item.descuentoFijo * item.cantidad;
-      const descDescarga = item.descuentoDescarga * item.cantidad;
+const calcularTodosDescuentos = useCallback((item) => {
+  // ✅ Incluir piezas regaladas en el cálculo base
+  const piezasTotales = item.cantidad + (item.piezasRegaladas ?? 0);
+  const precioBase = item.PriceLstParts_BasePrice * piezasTotales;
 
-      return {
-        descRegalo,
-        descUnitario,
-        descPorcentaje,
-        descFijo,
-        descDescarga,
-        descProntoPago,
-        piezasReg,
-        totalDescuentos:
-          descRegalo +
-          descUnitario +
-          descPorcentaje +
-          descFijo +
-          descDescarga +
-          descProntoPago,
-      };
-    },
-    [piezasRegaladas]
-  );
+  // ✅ Descuentos individuales
+  const descRegalo = (item.piezasRegaladas ?? 0) * item.PriceLstParts_BasePrice;
+  const descUnitario = item.descuentoUnitario * item.cantidad;
+  const descPorcentaje = precioBase * (item.descuentoPorcentaje / 100);
+  const descFijo = item.descuentoFijo * item.cantidad;
+  const descDescarga = item.descuentoDescarga * item.cantidad;
+
+  // ✅ Sumatoria de descuentos antes de pronto pago
+  const descuentosSinProntoPago = descRegalo + descUnitario + descPorcentaje + descFijo + descDescarga;
+
+  // ✅ Base para pronto pago
+  const subtotalAntesProntoPago = precioBase - descuentosSinProntoPago;
+
+  // ✅ Pronto pago sobre esa base
+  const descProntoPago = subtotalAntesProntoPago * (descuentosGlobales.prontoPago / 100);
+
+  // ✅ Total de descuentos del producto
+  const totalDescuentos = descuentosSinProntoPago + descProntoPago;
+
+  return {
+    descRegalo,
+    descUnitario,
+    descPorcentaje,
+    descFijo,
+    descDescarga,
+    descProntoPago,
+    piezasReg: item.piezasRegaladas ?? 0,
+    totalDescuentos,
+  };
+}, [descuentosGlobales.prontoPago]);
+
 
   // Funciones para manejar la cotización
   const agregarProducto = (producto) => {
@@ -517,27 +505,57 @@ function App() {
         descuentoPorcentaje: descuentosGlobales.porcentaje,
         descuentoFijo: descuentosGlobales.fijo,
         descuentoDescarga: descuentosGlobales.descarga,
-        descuentoProntoPago: descuentosGlobales.prontoPago,
         idUnico: `${producto.Part_PartNum}_${Date.now()}`,
       },
     ]);
   };
 
-  const actualizarCantidad = (partNum, cantidad) => {
+  const actualizarCantidad = (partNum, nuevaCantidad) => {
+    const cantidadNum = Math.max(1, Math.floor(parseInt(nuevaCantidad) || 1));
+
     setCotizacion((prev) =>
-      prev.map((p) =>
-        p.Part_PartNum === partNum
-          ? {
-              ...p,
-              cantidad: Math.max(1, parseInt(cantidad) || 1),
-              piezasRegaladas: calcularPiezasRegaladas(
-                Math.max(1, parseInt(cantidad) || 1),
-                p.unidadesParaRegalo
-              ),
-            }
-          : p
-      )
+      prev.map((item) => {
+        if (item.Part_PartNum !== partNum) return item;
+
+        const nuevasPiezasRegaladas = calcularPiezasRegaladas(
+          cantidadNum,
+          item.unidadesParaRegalo
+        );
+
+        return {
+          ...item,
+          cantidad: cantidadNum,
+          piezasRegaladas: nuevasPiezasRegaladas, // 🟢 recalcula con la nueva cantidad
+        };
+      })
     );
+  };
+
+  const handleListaPreciosChange = async (nuevaListaPrecios) => {
+    setListaSeleccionada(nuevaListaPrecios); // ← tú ya tienes este useState bien
+    setProductos([]); // Limpia productos actuales
+
+    try {
+      setCargandoProductos(true);
+
+      const response = await fetchConAuth(
+        `https://albapesa.app/ERP10Live/api/v1/BaqSvc/calculo_Admin_copy/?CodigoLista=${encodeURIComponent(
+          nuevaListaPrecios
+        )}`
+      );
+
+      const data = await response.json();
+      setProductos(data.value || []);
+      setErrorProductos(null);
+    } catch (error) {
+      console.error("Error al cargar productos:", error);
+      setErrorProductos(error.message);
+      if (error.message.includes("Credenciales inválidas")) {
+        handleLogout();
+      }
+    } finally {
+      setCargandoProductos(false);
+    }
   };
 
   const handleClienteSeleccionado = (cliente) => {
@@ -551,9 +569,14 @@ function App() {
   };
 
   const confirmarCambioCliente = () => {
-    setClienteSeleccionado(clientePendientePorSeleccionar); // puede ser null
+    setClienteSeleccionado(clientePendientePorSeleccionar); // cambia cliente
     setCotizacion([]); // limpiar cotización actual
     setProductos([]); // limpiar lista de productos
+    setProductosMostrados([]); // limpiar productos mostrados
+    setListaSeleccionada(""); // dejar vacía la lista seleccionada → para que el useEffect de listasCliente auto-seleccione la primera
+    // OJO: NO poner setListasCliente([]) → se actualizará solo en useEffect(clienteSeleccionado)
+    setBusquedaProducto(""); // limpiar búsqueda
+    setErrorProductos(null); // limpiar error
     setClientePendientePorSeleccionar(null);
     setMostrarConfirmacionCambioCliente(false);
   };
@@ -562,21 +585,44 @@ function App() {
     setClientePendientePorSeleccionar(null);
     setMostrarConfirmacionCambioCliente(false);
   };
-
   const actualizarDescuento = (partNum, campo, valor) => {
+    const val = parseFloat(valor);
+    const valorNumerico = isNaN(val) ? 0 : val;
+
     setCotizacion((prev) =>
       prev.map((p) => {
         if (p.Part_PartNum !== partNum) return p;
 
-        let valorValidado = parseFloat(valor) || 0;
+        let valorValidado = valorNumerico;
 
+        // 🔐 Evitar aplicar más descuentos si ya hay 100%
+        if (campo !== "descuentoPorcentaje" && p.descuentoPorcentaje >= 100) {
+          alert(
+            "⚠️ Ya se aplicó un 100% de descuento. No se permiten más descuentos."
+          );
+          return p;
+        }
+
+        // 🎯 Aplica 100% y limpia los demás descuentos
+        if (campo === "descuentoPorcentaje" && valorValidado === 100) {
+          return {
+            ...p,
+            descuentoPorcentaje: 100,
+            descuentoUnitario: 0,
+            descuentoFijo: 0,
+            descuentoDescarga: 0,
+          };
+        }
+
+        // Validaciones normales por campo
         if (campo === "descuentoPorcentaje") {
           valorValidado = Math.min(100, Math.max(0, valorValidado));
         } else if (campo === "descuentoUnitario") {
           valorValidado = Math.max(0, valorValidado);
+        } else if (campo === "descuentoFijo" || campo === "descuentoDescarga") {
+          valorValidado = Math.max(0, valorValidado);
         } else if (campo === "unidadesParaRegalo") {
           valorValidado = Math.max(0, Math.floor(valorValidado));
-
           return {
             ...p,
             [campo]: valorValidado,
@@ -604,10 +650,12 @@ function App() {
   // Cálculo de totales generales
   const totalSubtotal = useMemo(
     () =>
-      cotizacion.reduce(
-        (acc, item) => acc + item.PriceLstParts_BasePrice * item.cantidad,
-        0
-      ),
+      cotizacion.reduce((acc, item) => {
+        const piezasTotales =
+          item.cantidad +
+          calcularPiezasRegaladas(item.cantidad, item.unidadesParaRegalo);
+        return acc + item.PriceLstParts_BasePrice * piezasTotales;
+      }, 0),
     [cotizacion]
   );
 
@@ -641,7 +689,8 @@ function App() {
   const totalKilogramos = useMemo(
     () =>
       cotizacion.reduce(
-        (acc, item) => acc + item.Part_GrossWeight * item.cantidad,
+        (acc, item) =>
+          acc + item.Part_GrossWeight * (item.cantidad + item.piezasRegaladas),
         0
       ),
     [cotizacion]
@@ -664,40 +713,46 @@ function App() {
       ),
     [cotizacion, calcularTodosDescuentos]
   );
-
   const totalDescProntoPago = useMemo(
-    () =>
-      cotizacion.reduce(
-        (acc, item) => acc + calcularTodosDescuentos(item).descProntoPago,
-        0
-      ),
-    [cotizacion, calcularTodosDescuentos]
-  );
+  () =>
+    cotizacion.reduce(
+      (acc, item) => acc + calcularTodosDescuentos(item).descProntoPago,
+      0
+    ),
+  [cotizacion, calcularTodosDescuentos]
+);
 
-  const totalDescuentos = useMemo(
-    () =>
-      totalDescRegalo +
-      totalDescUnitario +
-      totalDescPorcentaje +
-      totalDescFijo +
-      totalDescDescarga +
-      totalDescProntoPago,
-    [
-      totalDescRegalo,
-      totalDescUnitario,
-      totalDescPorcentaje,
-      totalDescFijo,
-      totalDescDescarga,
-      totalDescProntoPago,
-    ]
-  );
 
-  const totalSubtotalConDescuento = totalSubtotal - totalDescuentos;
-  const totalIVA = totalSubtotalConDescuento * 0.16;
-  const totalGeneral = totalSubtotalConDescuento + totalIVA;
-  const porcentajeDescuentoTotal =
-    totalSubtotal > 0 ? (totalDescuentos / totalSubtotal) * 100 : 0;
-  const porcentajeFormateado = porcentajeDescuentoTotal.toFixed(2);
+
+const totalDescuentos = useMemo(
+  () =>
+    totalDescRegalo +
+    totalDescUnitario +
+    totalDescPorcentaje +
+    totalDescFijo +
+    totalDescDescarga +
+    totalDescProntoPago,
+  [
+    totalDescRegalo,
+    totalDescUnitario,
+    totalDescPorcentaje,
+    totalDescFijo,
+    totalDescDescarga,
+    totalDescProntoPago,
+  ]
+);
+
+
+// Total de descuentos ya incluye pronto pago por ítem
+const totalSubtotalConDescuento = totalSubtotal - totalDescuentos;
+const totalIVA = totalSubtotalConDescuento * 0.16;
+const totalGeneral = totalSubtotalConDescuento + totalIVA;
+
+const porcentajeDescuentoTotal = totalSubtotalConDescuento > 0
+  ? (totalDescuentos / totalSubtotalConDescuento) * 100
+  : 0;
+
+const porcentajeFormateado = porcentajeDescuentoTotal.toFixed(2);
 
   return (
     <Container fluid className="py-4">
@@ -783,6 +838,8 @@ function App() {
                           <Form.Select
                             value={listaSeleccionada}
                             onChange={(e) => {
+                              const nuevaLista = e.target.value;
+
                               if (cotizacion.length > 0) {
                                 if (
                                   window.confirm(
@@ -790,10 +847,10 @@ function App() {
                                   )
                                 ) {
                                   setCotizacion([]);
-                                  setListaSeleccionada(e.target.value);
+                                  handleListaPreciosChange(nuevaLista); // AQUÍ llamas la función
                                 }
                               } else {
-                                setListaSeleccionada(e.target.value);
+                                handleListaPreciosChange(nuevaLista); // AQUÍ también
                               }
                             }}
                           >
@@ -804,7 +861,7 @@ function App() {
                             ))}
                           </Form.Select>
                         ) : (
-                          <Alert variant="warning">Sin listas asignadas</Alert>
+                          <p>No hay listas de precios disponibles.</p>
                         )}
                       </Form.Group>
 
@@ -993,7 +1050,6 @@ function App() {
                             descuentoPorcentaje: descuentosGlobales.porcentaje,
                             descuentoFijo: descuentosGlobales.fijo,
                             descuentoDescarga: descuentosGlobales.descarga,
-                            descuentoProntoPago: descuentosGlobales.prontoPago,
                           }))
                         );
                       }}
@@ -1100,7 +1156,7 @@ function App() {
                 <Card>
                   <Card.Body>
                     <Card.Title>Cotización Actual</Card.Title>
-                    <div style={{ maxHeight: "500px", overflowX: "auto" }}>
+                    <div style={{ maxHeight: "550px", overflowX: "auto" }}>
                       <Table striped bordered hover responsive>
                         <thead>
                           <tr>
@@ -1114,7 +1170,6 @@ function App() {
                             <th>Apoyo Extra %</th>
                             <th>Otro($)</th>
                             <th>Descarga ($)</th>
-                            <th>Pronto Pago (%)</th>
                             <th>Subtotal</th>
                             <th>Total Desc.</th>
                             <th>Subtotal c/Desc.</th>
@@ -1127,16 +1182,20 @@ function App() {
                         <tbody>
                           {cotizacion.map((item) => {
                             const descuentos = calcularTodosDescuentos(item);
+                            const pztotales =
+                              item.cantidad + item.piezasRegaladas;
                             const subtotal =
-                              item.PriceLstParts_BasePrice * item.cantidad;
+                              item.PriceLstParts_BasePrice * pztotales;
                             const kilosTotales =
-                              item.Part_GrossWeight * item.cantidad;
+                              item.Part_GrossWeight * pztotales;
                             const subtotalConDescuento =
                               subtotal - descuentos.totalDescuentos;
                             const preciocdescuento =
-                              subtotalConDescuento / item.cantidad;
+                              subtotalConDescuento / pztotales;
                             const iva = subtotalConDescuento * 0.16;
                             const total = subtotalConDescuento + iva;
+                            const estaBloqueado =
+                              item.descuentoPorcentaje >= 100;
 
                             return (
                               <tr key={item.idUnico}>
@@ -1175,6 +1234,7 @@ function App() {
                                           e.target.value
                                         )
                                       }
+                                      disabled={estaBloqueado}
                                     />
                                     <InputGroup.Text>$</InputGroup.Text>
                                   </InputGroup>
@@ -1186,6 +1246,7 @@ function App() {
                                     type="number"
                                     value={item.unidadesParaRegalo}
                                     min="0"
+                                    disabled={estaBloqueado}
                                     onChange={(e) => {
                                       const promoValue =
                                         parseInt(e.target.value) || 0;
@@ -1194,19 +1255,9 @@ function App() {
                                         "unidadesParaRegalo",
                                         promoValue
                                       );
-
-                                      // Calcular y actualizar piezas regaladas inmediatamente
-                                      const regaladas = calcularPiezasRegaladas(
-                                        item.cantidad,
-                                        promoValue
-                                      );
-                                      setPiezasRegaladas((prev) => ({
-                                        ...prev,
-                                        [item.idUnico]: regaladas,
-                                      }));
                                     }}
                                     title="Ingrese X para promoción 'X+1' (ej: 3 para 3+1)"
-                                    style={{ width: "60px" }}
+                                    style={{ width: "90px" }}
                                   />
                                 </td>
 
@@ -1214,8 +1265,7 @@ function App() {
                                 <td>
                                   {item.unidadesParaRegalo > 0 ? (
                                     <Badge bg="success">
-                                      {piezasRegaladas[item.idUnico] || 0}{" "}
-                                      gratis
+                                      {item.piezasRegaladas || 0} gratis
                                       <small className="d-block">
                                         (Promo 1/{item.unidadesParaRegalo})
                                       </small>
@@ -1227,7 +1277,7 @@ function App() {
 
                                 {/* Descuento Porcentaje */}
                                 <td>
-                                  <InputGroup style={{ width: "90px" }}>
+                                  <InputGroup style={{ width: "130px" }}>
                                     <Form.Control
                                       type="number"
                                       value={item.descuentoPorcentaje}
@@ -1253,12 +1303,13 @@ function App() {
 
                                 {/* Descuento Fijo */}
                                 <td>
-                                  <InputGroup size="s">
+                                  <InputGroup style={{ width: "110px" }}>
                                     <Form.Control
                                       type="number"
                                       value={item.descuentoFijo}
                                       min="0"
                                       step="0.01"
+                                      disabled={estaBloqueado}
                                       onChange={(e) =>
                                         actualizarDescuento(
                                           item.Part_PartNum,
@@ -1279,12 +1330,13 @@ function App() {
 
                                 {/* Descarga */}
                                 <td>
-                                  <InputGroup size="s">
+                                  <InputGroup style={{ width: "110px" }}>
                                     <Form.Control
                                       type="number"
                                       value={item.descuentoDescarga}
                                       min="0"
                                       step="0.01"
+                                      disabled={estaBloqueado}
                                       onChange={(e) =>
                                         actualizarDescuento(
                                           item.Part_PartNum,
@@ -1300,33 +1352,6 @@ function App() {
                                       }
                                     />
                                     <InputGroup.Text>$</InputGroup.Text>
-                                  </InputGroup>
-                                </td>
-
-                                {/* Pronto Pago */}
-                                <td>
-                                  <InputGroup size="s">
-                                    <Form.Control
-                                      type="number"
-                                      value={item.descuentoProntoPago}
-                                      min="0"
-                                      max="3"
-                                      step="0.1"
-                                      onChange={(e) =>
-                                        actualizarDescuento(
-                                          item.Part_PartNum,
-                                          "descuentoProntoPago",
-                                          e.target.value
-                                        )
-                                      }
-                                      className={
-                                        item.descuentoProntoPago !==
-                                        descuentosGlobales.prontoPago
-                                          ? "bg-warning bg-opacity-25"
-                                          : ""
-                                      }
-                                    />
-                                    <InputGroup.Text>%</InputGroup.Text>
                                   </InputGroup>
                                 </td>
 
@@ -1357,7 +1382,7 @@ function App() {
                           <tr className="fw-bold bg-light">
                             <td colSpan="3">Totales</td>
                             <td>{formatoKilogramos(totalKilogramos)}</td>
-                            <td colSpan="7"></td>
+                            <td colSpan="6"></td>
                             <td>{formatoMoneda(totalSubtotal)}</td>
                             <td className="text-danger">
                               -{formatoMoneda(totalDescuentos)}
@@ -1369,7 +1394,7 @@ function App() {
                             <td></td>
                           </tr>
                           <tr className="fw-bold bg-light">
-                            <td colSpan="12"></td>
+                            <td colSpan="11"></td>
                             <td colSpan="1" className="text-danger">
                               {porcentajeFormateado}%
                             </td>
@@ -1384,7 +1409,7 @@ function App() {
                           </tr>
 
                           <tr className="breakdown-row">
-                            <td colSpan="15" className="small">
+                            <td colSpan="14" className="small">
                               <strong>Desglose de descuentos:</strong>
                               <span className="ms-2">
                                 Tolal PushMoney:{" "}
@@ -1428,28 +1453,64 @@ function App() {
               </Col>
             </Row>
           )}
-          {/* <Button
+          <Button
             variant="secondary"
             onClick={() => {
+              // Paso 1: construir cotizacionParaPDF
+              const cotizacionParaPDF = cotizacion.map((item) => {
+                const cantidadTotal =
+                  item.cantidad + (item.piezasRegaladas ?? 0);
+                const subtotal = item.PriceLstParts_BasePrice * cantidadTotal;
+
+                const descuentos = calcularTodosDescuentos(item);
+                const subtotalConDescuento =
+                  subtotal - descuentos.totalDescuentos;
+
+                return {
+                  ...item,
+                  cantidadTotal,
+                  subtotal,
+                  subtotalConDescuento,
+                  totalDescuentos: descuentos.totalDescuentos,
+                  piezasRegaladas: item.piezasRegaladas ?? 0,
+                  ...descuentos, // Incluye descRegalo, descUnitario, etc.
+                };
+              });
+
+              // Paso 2: testData limpio y sin repeticiones
               const testData = {
-                cotizacion,
+                cotizacion: cotizacionParaPDF,
                 cliente: clienteSeleccionado,
                 listaPrecios: listaSeleccionada,
+                //idCotizacion: idCotizacion,
+                usuario: auth.usuario,
+
+                // Totales globales ya calculados
                 subtotal: totalSubtotal,
-                descuentos: totalDescuentos,
+                totalSubtotalConDescuento: totalSubtotalConDescuento,
                 iva: totalIVA,
                 total: totalGeneral,
                 kilogramos: totalKilogramos,
-                porcentajeFormateado,
-                piezasRegaladas,
-                calcularDescuentos: calcularTodosDescuentos,
+                porcentajeFormateado: porcentajeFormateado,
+
+                // Desglose de descuentos totales
+                totalDescUnitario: totalDescUnitario,
+                totalDescRegalo: totalDescRegalo,
+                totalDescPorcentaje: totalDescPorcentaje,
+                totalDescFijo: totalDescFijo,
+                totalDescDescarga: totalDescDescarga,
+                
+                descuentoProntoPagoGlobal: totalDescProntoPago
+
+                // Solo si lo necesitas dentro del PDF
               };
+
               console.log("Datos de prueba para PDF:", testData);
               console.table(testData.cotizacion);
             }}
           >
             Ver Datos PDF
-          </Button> */}
+          </Button>
 
           <Modal
             show={mostrarConfirmacionCambioCliente}
@@ -1499,28 +1560,123 @@ function App() {
               >
                 Cancelar
               </Button>
+              {/*
+                Prepara los datos para el PDF fuera del JSX
+              */}
+              {(() => {
+                const cotizacionParaPDF = cotizacion.map((item) => {
+                  const cantidadTotal =
+                    item.cantidad + (item.piezasRegaladas ?? 0);
+                  const subtotal = item.PriceLstParts_BasePrice * cantidadTotal;
+
+                  const descuentos = calcularTodosDescuentos(item);
+                  const subtotalConDescuento =
+                    subtotal - descuentos.totalDescuentos;
+
+                  return {
+                    ...item,
+                    cantidadTotal,
+                    subtotal,
+                    subtotalConDescuento,
+                    totalDescuentos: descuentos.totalDescuentos,
+                    piezasRegaladas: item.piezasRegaladas ?? 0,
+                    ...descuentos, // Incluye descRegalo, descUnitario, etc.
+                  };
+                });
+
+                return (
+                  <PDFDownloadLink
+                    document={
+                      <PdfDocument
+                        cotizacion={cotizacionParaPDF}
+                        cliente={clienteSeleccionado}
+                        listaPrecios={listaSeleccionada}
+                        subtotal={totalSubtotal}
+                        porcentajeDesc ={descuentosGlobales.prontoPago }
+                        descuentos={totalDescuentos}
+                        iva={totalIVA}
+                        total={totalGeneral}
+                        totalSubtotalConDescuento={totalSubtotalConDescuento}
+                        kilogramos={totalKilogramos}
+                        porcentajeFormateado={porcentajeFormateado}
+                        idCotizacion={idCotizacion}
+                        piezasRegaladas={piezasRegaladas}
+                        usuario={auth.usuario}
+                        totalDescUnitario={totalDescUnitario}
+                        totalDescRegalo={totalDescRegalo}
+                        totalDescPorcentaje={totalDescPorcentaje}
+                        totalDescFijo={totalDescFijo}
+                        totalDescDescarga={totalDescDescarga}
+                        descuentoProntoPagoGlobal={totalDescProntoPago}
+                      />
+                    }
+                    fileName={`${idCotizacion || "prueba"}.pdf`}
+                    style={{
+                      textDecoration: "none",
+                      padding: "10px 15px",
+                      backgroundColor: "#6c757d",
+                      color: "white",
+                      borderRadius: "5px",
+                      marginTop: "10px",
+                      display: "inline-block",
+                    }}
+                  >
+                    {({ loading }) =>
+                      loading ? "Generando PDF..." : "📄 Descargar PDF Actual"
+                    }
+                  </PDFDownloadLink>
+                );
+              })()}
+
               <Button
                 variant="primary"
                 onClick={async () => {
                   setMostrarModalCorreo(false);
+                  const cotizacionParaPDF = cotizacion.map((item) => {
+                    const cantidadTotal =
+                      item.cantidad + (item.piezasRegaladas ?? 0);
+                    const subtotal =
+                      item.PriceLstParts_BasePrice * cantidadTotal;
 
-                  const nuevoId = generarIdCotizacion();
+                    const descuentos = calcularTodosDescuentos(item);
+                    const subtotalConDescuento =
+                      subtotal - descuentos.totalDescuentos;
+
+                    return {
+                      ...item,
+                      cantidadTotal,
+                      subtotal,
+                      subtotalConDescuento,
+                      totalDescuentos: descuentos.totalDescuentos,
+                      piezasRegaladas: item.piezasRegaladas ?? 0,
+                      ...descuentos, // Incluye descRegalo, descUnitario, etc.
+                    };
+                  });
+
+                  const nuevoId = idCotizacion;
 
                   const doc = (
                     <PdfDocument
-                      cotizacion={cotizacion}
+                      cotizacion={cotizacionParaPDF}
                       cliente={clienteSeleccionado}
                       listaPrecios={listaSeleccionada}
                       subtotal={totalSubtotal}
                       descuentos={totalDescuentos}
                       iva={totalIVA}
                       total={totalGeneral}
+                      totalSubtotalConDescuento={totalSubtotalConDescuento}
                       kilogramos={totalKilogramos}
                       porcentajeFormateado={porcentajeFormateado}
                       calcularDescuentos={calcularTodosDescuentos}
                       idCotizacion={nuevoId}
                       piezasRegaladas={piezasRegaladas}
                       usuario={auth.usuario}
+                      totalDescUnitario={totalDescUnitario}
+                      totalDescRegalo={totalDescRegalo}
+                      totalDescPorcentaje={totalDescPorcentaje}
+                      totalDescFijo={totalDescFijo}
+                      totalDescDescarga={totalDescDescarga}
+                      descuentoProntoPagoGlobal={totalDescProntoPago}
                     />
                   );
 
@@ -1545,7 +1701,7 @@ function App() {
                   if (porcentajeDescuentoTotal > 10.9) {
                     const correosDestinoMayores = [
                       "rcontreras@albapesa.com.mx",
-                      "mlopez@albapesa.com.mx",
+                      "atopete@albapesa.com.mx",
                     ];
                     try {
                       await enviarPDFporCorreo(
